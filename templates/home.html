@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Libra — Digital Library</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <header class="nav">
+    <a class="brand" href="/">
+      <b>L</b>
+      <span><strong>Libra</strong><small>Digital Library</small></span>
+    </a>
+    <nav>
+      <a class="active" href="/">Home</a>
+      <a href="#catalog">Catalog</a>
+      <a href="#steps">How it works</a>
+      <a href="/admin">Admin</a>
+    </nav>
+    <a class="outline" href="#catalog">Browse Books →</a>
+  </header>
+
+  {% if is_mock %}
+  <div class="db-banner warning">
+    <span>ℹ️ <strong>System Notice:</strong> {{ db_status_msg }}</span>
+  </div>
+  {% elif db_error %}
+  <div class="db-banner danger">
+    <span>⚠️ <strong>Database Connection Error:</strong> {{ db_error }}</span>
+  </div>
+  {% endif %}
+
+  <section class="hero">
+    <div>
+      <div class="eyebrow">CAMPUS LIBRARY PORTAL</div>
+      <h1>Find your next<br><i>great read.</i></h1>
+      <p>Explore the library collection, discover something new, and borrow your favourite book in a few simple steps.</p>
+      <button class="primary" onclick="document.getElementById('catalog').scrollIntoView({behavior: 'smooth'})">Explore Collection ↗</button>
+    </div>
+    <div class="hero-art">
+      <div class="book big">
+        LIBRA<br>
+        <strong>YOUR NEXT<br>CHAPTER</strong>
+        <small>READ • LEARN • GROW</small>
+      </div>
+      <div class="float one">✓ <span><b>Quick checkout</b><small>Reserve in seconds</small></span></div>
+      <div class="float two">● <span><b>Live availability</b><small>Check before borrowing</small></span></div>
+    </div>
+  </section>
+
+  <section class="stats">
+    <div><b>{{ summary.get('titles', 0) }}</b><span>Book titles</span></div>
+    <div><b>{{ summary.get('copies', 0) }}</b><span>Total copies</span></div>
+    <div><b>{{ summary.get('available', 0) }}</b><span>Available now</span></div>
+    <div><b>{{ summary.get('members', 0) }}</b><span>Registered members</span></div>
+  </section>
+
+  <section id="catalog" class="section">
+    <div class="heading">
+      <div>
+        <div class="eyebrow">OUR COLLECTION</div>
+        <h2>Browse the library</h2>
+        <p>Search the live MongoDB collection and choose a book to borrow.</p>
+      </div>
+      <div class="controls">
+        <input id="search" placeholder="⌕ Search title, author or ISBN...">
+        <select id="category">
+          <option value="">All categories</option>
+          {% for c in categories %}
+          <option value="{{ c }}">{{ c }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+
+    <div id="grid" class="grid">
+      {% for book in books %}
+      <article class="card" data-id="{{ book.book_id }}" data-title="{{ book.title|lower }}" data-author="{{ book.author|lower }}" data-category="{{ book.category }}">
+        {% set cover_num = (loop.index0 % 8) + 1 %}
+        <div class="cover c{{ cover_num }}">
+          <small>{{ book.category }}</small>
+          <strong>{{ book.title }}</strong>
+          <em>{{ book.author }}</em>
+        </div>
+        <div class="cardbody">
+          <span class="tag">{{ book.category }}</span>
+          <h3>{{ book.title }}</h3>
+          <p>{{ book.author }} · {{ book.published_year }}</p>
+          <div class="bottom">
+            <span class="availability {% if book.available_copies == 0 %}off{% endif %}">
+              {% if book.available_copies > 0 %}
+                {{ book.available_copies }} available
+              {% else %}
+                Unavailable
+              {% endif %}
+            </span>
+            {% if book.available_copies > 0 %}
+            <button onclick="openBorrowById('{{ book.book_id }}')">Borrow →</button>
+            {% else %}
+            <button disabled>Unavailable</button>
+            {% endif %}
+          </div>
+        </div>
+      </article>
+      {% endfor %}
+    </div>
+    <div id="empty" class="empty" hidden>No books match your search.</div>
+  </section>
+
+  <section id="steps" class="steps">
+    <div class="eyebrow">SIMPLE PROCESS</div>
+    2 Borrow in three steps
+    <div class="stepgrid">
+      <div>
+        <b>01</b>
+        <h3>Find a book</h3>
+        <p>Search the live catalog and check current availability.</p>
+      </div>
+      <div>
+        <b>02</b>
+        <h3>Enter your details</h3>
+        <p>Provide your name, student ID and contact information.</p>
+      </div>
+      <div>
+        <b>03</b>
+        <h3>Confirm borrowing</h3>
+        <p>Your request is stored in MongoDB and the copy count is updated automatically.</p>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <a class="brand" href="/"><b>L</b><span><strong>Libra</strong><small>Digital Library</small></span></a>
+    <p>Python · Flask · PyMongo · MongoDB Atlas</p>
+  </footer>
+
+  <!-- Borrow Modal -->
+  <div id="borrowModal" class="overlay">
+    <div class="modal">
+      <button class="close" onclick="closeModal()">×</button>
+      <div class="selected">
+        <div id="modalCover" class="modalcover"></div>
+        <div>
+          <div class="eyebrow">SELECTED BOOK</div>
+          <h2 id="modalTitle"></h2>
+          <p id="modalAuthor"></p>
+          <span class="availability" id="modalAvail"></span>
+        </div>
+      </div>
+      <form id="borrowForm">
+        <input type="hidden" id="bookId">
+        <h3>Your details</h3>
+        <p class="muted">Required details are stored in the library database.</p>
+        <div class="row">
+          <label>Full name<input id="name" required placeholder="Enter your full name"></label>
+          <label>Student ID<input id="studentId" required placeholder="e.g. 24DS001"></label>
+        </div>
+        <div class="row">
+          <label>Email<input id="email" type="email" required placeholder="you@example.com"></label>
+          <label>Phone<input id="phone" placeholder="+91 XXXXX XXXXX"></label>
+        </div>
+        <label>Department<input id="department" placeholder="e.g. Data Science"></label>
+        <div class="note">ⓘ Standard borrowing period: <b>14 days</b></div>
+        <button class="submit" type="submit">Confirm & Borrow Book →</button>
+        <p id="formError" class="error"></p>
+      </form>
+    </div>
+  </div>
+
+  <!-- Success Modal -->
+  <div id="successModal" class="overlay">
+    <div class="success">
+      <div class="check">✓</div>
+      <div class="eyebrow">REQUEST CONFIRMED</div>
+      <h2>You're all set!</h2>
+      <p id="successMessage"></p>
+      <div class="details">
+        <span>Issue ID <b id="issueId"></b></span>
+        <span>Due date <b id="dueDate"></b></span>
+      </div>
+      <button class="submit" onclick="closeSuccess()">Done</button>
+    </div>
+  </div>
+
+  <script>
+    const INITIAL_BOOKS = {{ books|tojson }};
+  </script>
+  <script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>

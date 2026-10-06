@@ -1,0 +1,227 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Libra Admin Dashboard</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <header class="nav">
+    <a class="brand" href="/">
+      <b>L</b>
+      <span><strong>Libra</strong><small>Admin Console</small></span>
+    </a>
+    <nav>
+      <a href="/">Customer View</a>
+      <a class="active" href="/admin">Dashboard</a>
+    </nav>
+  </header>
+
+  {% if is_mock %}
+  <div class="db-banner warning">
+    <span>ℹ️ <strong>System Notice:</strong> {{ db_status_msg }}</span>
+  </div>
+  {% elif db_error %}
+  <div class="db-banner danger">
+    <span>⚠️ <strong>Database Connection Error:</strong> {{ db_error }}</span>
+  </div>
+  {% endif %}
+
+  <main class="admin">
+    <div class="adminhead">
+      <div>
+        <div class="eyebrow">LIBRARY MANAGEMENT</div>
+        <h1>Admin dashboard</h1>
+        <p>Monitor inventory, members and borrowing activity in real-time.</p>
+      </div>
+      <form method="post" action="/admin/seed">
+        <button class="primary" type="submit">Load Sample Books</button>
+      </form>
+    </div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% for cat, msg in messages %}
+        <div class="flash {{ cat }}">{{ msg }}</div>
+      {% endfor %}
+    {% endwith %}
+
+    <div class="adminstats">
+      <div><span>Titles</span><b>{{ summary.get('titles', 0) }}</b></div>
+      <div><span>Copies</span><b>{{ summary.get('copies', 0) }}</b></div>
+      <div><span>Available</span><b>{{ summary.get('available', 0) }}</b></div>
+      <div><span>On loan</span><b>{{ summary.get('on_loan', 0) }}</b></div>
+      <div><span>Overdue</span><b>{{ summary.get('overdue', 0) }}</b></div>
+    </div>
+
+    <!-- Inventory Panel -->
+    <section class="panel">
+      <div class="panelhead">
+        <div>
+          <div class="eyebrow">INVENTORY</div>
+          <h2>Books Collection</h2>
+        </div>
+      </div>
+      <div class="tablewrap">
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Title</th>
+              <th>Author</th>
+              <th>Category</th>
+              <th>ISBN</th>
+              <th>Availability</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for b in books %}
+            <tr>
+              <td><code>{{ b.book_id }}</code></td>
+              <td><strong>{{ b.title }}</strong></td>
+              <td>{{ b.author }}</td>
+              <td><span class="tag">{{ b.category }}</span></td>
+              <td><code>{{ b.isbn }}</code></td>
+              <td>
+                <span class="availability {% if b.available_copies == 0 %}off{% endif %}">
+                  {{ b.available_copies }} / {{ b.total_copies }}
+                </span>
+              </td>
+              <td>
+                <form method="post" action="/admin/books/delete/{{ b.book_id }}" onsubmit="return confirm('Are you sure you want to delete {{ b.title }}?');" style="display:inline;">
+                  <button class="smallbtn dangerbtn" type="submit">Delete</button>
+                </form>
+              </td>
+            </tr>
+            {% else %}
+            <tr>
+              <td colspan="7" style="text-align:center; padding:20px;">No books found in inventory.</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Issue History Panel -->
+    <section class="panel">
+      <div class="panelhead">
+        <div>
+          <div class="eyebrow">ACTIVITY</div>
+          <h2>Issue & Return History</h2>
+        </div>
+      </div>
+      <div class="tablewrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Issue ID</th>
+              <th>Book Title</th>
+              <th>Member Name</th>
+              <th>Status</th>
+              <th>Due Date</th>
+              <th>Fine</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for i in issues %}
+            <tr>
+              <td><code>{{ i.issue_id }}</code></td>
+              <td><strong>{{ i.book_title }}</strong></td>
+              <td>{{ i.member_name }} <code>({{ i.member_id }})</code></td>
+              <td>
+                <span class="status-pill {% if i.status == 'Issued' %}issued{% else %}returned{% endif %}">
+                  {{ i.status }}
+                </span>
+              </td>
+              <td>{{ i.due_date[:10] if i.due_date else '-' }}</td>
+              <td>Rs. {{ i.fine or 0 }}</td>
+              <td>
+                {% if i.status == 'Issued' %}
+                <form method="post" action="/admin/return/{{ i.issue_id }}">
+                  <button class="smallbtn" type="submit">Return Book</button>
+                </form>
+                {% else %}
+                <span style="color:var(--muted);">Returned</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% else %}
+            <tr>
+              <td colspan="7" style="text-align:center; padding:20px;">No issue history found.</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Members Panel -->
+    <section class="panel">
+      <div class="panelhead">
+        <div>
+          <div class="eyebrow">MEMBERSHIP</div>
+          <h2>Registered Members</h2>
+        </div>
+      </div>
+      <div class="tablewrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Member ID</th>
+              <th>Name</th>
+              <th>Student ID</th>
+              <th>Email</th>
+              <th>Department</th>
+              <th>Phone</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for m in members %}
+            <tr>
+              <td><code>{{ m.member_id }}</code></td>
+              <td><strong>{{ m.name }}</strong></td>
+              <td><code>{{ m.student_id }}</code></td>
+              <td>{{ m.email }}</td>
+              <td>{{ m.department or 'Student' }}</td>
+              <td>{{ m.phone or '-' }}</td>
+            </tr>
+            {% else %}
+            <tr>
+              <td colspan="6" style="text-align:center; padding:20px;">No registered members yet.</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Add Book Panel -->
+    <section class="panel">
+      <div class="panelhead">
+        <div>
+          <div class="eyebrow">ADD INVENTORY</div>
+          <h2>Add a new book</h2>
+        </div>
+      </div>
+      <form class="adminform" method="post" action="/admin/books/add">
+        <div class="row">
+          <label>Title<input name="title" required placeholder="Book Title"></label>
+          <label>Author<input name="author" required placeholder="Author Name"></label>
+        </div>
+        <div class="row">
+          <label>Category<input name="category" required placeholder="e.g. Computer Science"></label>
+          <label>ISBN<input name="isbn" required placeholder="13-digit ISBN"></label>
+        </div>
+        <div class="row">
+          <label>Published year<input name="year" type="number" required placeholder="e.g. 2024"></label>
+          <label>Total copies<input name="copies" type="number" min="1" required value="3"></label>
+        </div>
+        <button class="primary" type="submit">Add Book to Library →</button>
+      </form>
+    </section>
+  </main>
+</body>
+</html>
